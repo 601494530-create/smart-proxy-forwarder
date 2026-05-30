@@ -35,7 +35,7 @@
 ## 运行环境
 
 - **Python 3.8+**（只用了标准库，无需 pip 安装任何依赖）
-- **WSL2 / Linux**（实际上任何有 Python 的地方都能跑）
+- **Linux / WSL2**（实际上任何有 Python 的地方都能跑）
 - 一个 **HTTPS CONNECT 代理服务器**（比如 Chrome VPN 插件的上游服务器、VPS 上搭的 squid/caddy 等）
 
 ---
@@ -55,6 +55,7 @@ bash setup.sh your-proxy.example.com 443 true
 
 # 3. 重新打开终端或执行 source
 source ~/.bashrc
+# 如果用的是 zsh： source ~/.zshrc
 
 # 4. 验证
 curl -v https://www.google.com    # → 应成功（走代理）
@@ -102,7 +103,7 @@ npm config set https-proxy http://127.0.0.1:10808
 
 ### 4. 开机自启
 
-把 `bash-integration.sh` 的内容追加到 `~/.bashrc`，或直接运行 `setup.sh` 自动配置。
+运行 `setup.sh` 自动配置，或将 `bash-integration.sh` 内容追加到 `~/.bashrc` / `~/.zshrc`。
 
 ---
 
@@ -117,14 +118,26 @@ npm config set https-proxy http://127.0.0.1:10808
 | `--remote-host` | **必填** | 远程 HTTPS CONNECT 代理地址 |
 | `--remote-port` | `443` | 远程代理端口 |
 | `--config` | `""` | JSON 配置文件路径 |
+| `--insecure` / `-k` | `false` | 跳过 TLS 证书验证 |
 | `--version` | - | 显示版本号 |
 
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PROXY_PORT` | `10808` | 覆盖所有脚本和配置中的端口号 |
+| `PROXY_LOG` | `/tmp/proxy-forwarder.log` | 日志文件路径 |
+| `XDG_CONFIG_HOME` | `~/.config` | 配置文件目录 |
+
 ### 配置文件 (`config.json`)
+
+安装后配置文件位于 `~/.config/proxy-forwarder/config.json`：
 
 ```json
 {
   "remote": { "host": "your-proxy.com", "port": 443 },
   "listen": { "host": "127.0.0.1", "port": 10808 },
+  "insecure": false,
   "china_ip_list_url": "",
   "direct_domains": ["*.my-corp.com"]
 }
@@ -137,10 +150,13 @@ npm config set https-proxy http://127.0.0.1:10808
 ## 管理命令
 
 ```bash
-bash ~/.hermes/scripts/proxy-manager.sh status   # 查看运行状态
-bash ~/.hermes/scripts/proxy-manager.sh restart  # 重启
-bash ~/.hermes/scripts/proxy-manager.sh stop     # 停止
-bash ~/.hermes/scripts/proxy-manager.sh start    # 启动
+bash ~/.config/proxy-forwarder/proxy-manager.sh status   # 查看运行状态
+bash ~/.config/proxy-forwarder/proxy-manager.sh restart  # 重启
+bash ~/.config/proxy-forwarder/proxy-manager.sh stop     # 停止
+bash ~/.config/proxy-forwarder/proxy-manager.sh start    # 启动
+
+# 切换到不同端口
+PROXY_PORT=9090 bash ~/.config/proxy-forwarder/proxy-manager.sh start
 ```
 
 ---
@@ -163,26 +179,84 @@ bash ~/.hermes/scripts/proxy-manager.sh start    # 启动
   ```bash
   python3 proxy_forwarder.py --remote-host example.com --insecure
   ```
-- 使用 `--insecure` 时，远程代理服务器可以对你进行中间人攻击**
+- 使用 `--insecure` 时，远程代理服务器可以对你进行中间人攻击
 - 仅在**你信任的代理服务器**上使用 `--insecure`
 - 实际流量内容仍是端到端加密的（你的工具 → 目标服务器之间的 TLS），代理只能看到你访问了哪个域名
 - 监听的本地端口（默认 10808）只绑定到 127.0.0.1，不会暴露到局域网
 
 ---
 
+## 常见问题
+
+### 转发器启动失败怎么办？
+
+检查日志：
+```bash
+cat /tmp/proxy-forwarder.log
+```
+
+常见原因：
+- `--remote-host` 未设置或为空 → 启动日志会显示 ERROR
+- 远程代理服务器不可达 → 检查网络连接
+- Python 版本过低 → 需要 3.8+
+- 端口被占用 → 换端口：`PROXY_PORT=9090 bash setup.sh ...`
+
+### Google/GitHub 能访问，但百度/国内站很慢？
+
+说明国内站走了代理。正常应该直连（百度应 < 0.2s）。检查：
+- 白名单是否覆盖了该域名？
+- 如果是未覆盖的国内站，提交 Issue 补充白名单
+
+### 国内站能访问，但 Google/GitHub 打不开？
+
+转发器可能没启动，或者远程代理服务器不可用。检查：
+```bash
+bash ~/.config/proxy-forwarder/proxy-manager.sh status
+```
+如果显示 "Running"，检查 `/tmp/proxy-forwarder.log` 看是否有连接错误。
+
+### 如何更换代理服务器？
+
+编辑配置文件：
+```bash
+vim ~/.config/proxy-forwarder/config.json
+# 修改 remote.host 和 remote.port
+bash ~/.config/proxy-forwarder/proxy-manager.sh restart
+```
+
+### 如何更改端口？
+
+所有脚本都支持 `PROXY_PORT` 环境变量：
+```bash
+PROXY_PORT=9090 bash setup.sh your-proxy.com 443
+PROXY_PORT=9090 bash ~/.config/proxy-forwarder/proxy-manager.sh start
+export PROXY_PORT=9090  # 永久设置
+```
+
+### macOS 能用吗？
+
+代码层面可以（纯 Python），但 `setup.sh` 和 `proxy-manager.sh` 是针对 Linux 的。macOS 用户可以：
+```bash
+pip install .
+proxy-forwarder --remote-host your-proxy.com --insecure
+```
+
+### 为什么要 `--insecure`？
+
+多数 Chrome VPN 插件的代理服务器使用自签名证书或 IP 地址直连，系统证书链无法验证。这是常见的，**只要代理服务器是你自己的**（或你信任的），加 `--insecure` 是安全的。
+
+---
+
 ## 项目文件结构
+
+安装后文件位于 `~/.config/proxy-forwarder/`：
 
 | 文件 | 说明 |
 |------|------|
-| `proxy_forwarder.py` | 核心转发器（371 行，纯 Python 3 标准库） |
-| `proxy-manager.sh` | 管理脚本（start/stop/status） |
-| `setup.sh` | 一键安装脚本（复制文件 + 配置 bashrc + 配 git/npm） |
-| `bash-integration.sh` | `.bashrc` 集成片段（自动启动 + 环境变量） |
-| `config.example.json` | 配置模板 |
-| `README.md` | 本文档 |
-| `LICENSE` | MIT 开源协议 |
-| `pyproject.toml` | pip 安装配置 |
-| `CONTRIBUTING.md` | 贡献指南 |
+| `proxy_forwarder.py` | 核心转发器 |
+| `proxy-manager.sh` | 管理脚本 |
+| `bash-integration.sh` | Shell 集成片段（供手动安装用） |
+| `config.json` | 配置文件（由 setup.sh 创建） |
 
 兼容任何 HTTPS CONNECT 代理（Chrome VPN 插件、Squid、Caddy、mitmproxy 等）。
 
