@@ -173,16 +173,21 @@ def relay_traffic(src, dst, shutdown_event):
     """Bidirectional traffic relay with idle timeout.
 
     Uses shutdown_event to signal the paired relay to stop when one direction closes.
-    Checks shutdown_event every 15 seconds instead of waiting for the full idle timeout.
+    Polls for shutdown_event every second while waiting for data.
     """
     try:
-        src.settimeout(15)
-        dst.settimeout(15)
+        src.settimeout(RELAY_IDLE_TIMEOUT)
+        dst.settimeout(RELAY_IDLE_TIMEOUT)
         while not shutdown_event.is_set():
-            data = src.recv(BUFSIZE)
-            if not data:
-                break
-            dst.sendall(data)
+            # Short timeout so we can check shutdown_event regularly
+            src.settimeout(1.0)
+            try:
+                data = src.recv(BUFSIZE)
+                if not data:
+                    break
+                dst.sendall(data)
+            except socket.timeout:
+                continue  # timeout is normal, re-check shutdown_event
     except socket.timeout:
         pass  # idle timeout — normal
     except OSError:
