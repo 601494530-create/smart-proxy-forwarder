@@ -141,7 +141,11 @@ def is_direct_domain(host: str, direct_domains: set) -> bool:
 
 def is_ip_string(host: str) -> bool:
     """Check if host is a raw IPv4/IPv6 string (no DNS resolution needed)."""
-    return host.replace(".", "").replace(":", "").isdigit()
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
 
 
 def relay_traffic(src, dst, shutdown_event):

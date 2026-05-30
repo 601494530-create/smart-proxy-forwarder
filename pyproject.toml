@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "smart-proxy-forwarder"
+version = "1.0.0"
+description = "Auto-routing CONNECT proxy: domestic direct / international via remote HTTPS proxy. DNS-leak-free."
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["proxy", "connect-proxy", "china", "wsl", "dns-leak", "forwarder"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: Proxy Servers",
+    "Topic :: System :: Networking",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/601494530-create/smart-proxy-forwarder"
+Repository = "https://github.com/601494530-create/smart-proxy-forwarder"
+
+[project.scripts]
+proxy-forwarder = "proxy_forwarder:main"
+
+[tool.setuptools.packages.find]
+include = ["proxy_forwarder*"]

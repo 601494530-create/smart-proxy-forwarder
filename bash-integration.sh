@@ -8,7 +8,7 @@
 # ============================================================================
 
 # ── Paths ──
-PROXY_SCRIPT="$HOME/.hermes/scripts/proxy-forwarder.py"
+PROXY_SCRIPT="$HOME/.hermes/scripts/proxy_forwarder.py"
 PROXY_CONFIG="$HOME/.hermes/scripts/proxy-config.json"
 PROXY_LOG="/tmp/proxy-forwarder.log"
 
@@ -29,7 +29,7 @@ _start_proxy_forwarder() {
     done
 }
 
-if ! pgrep -f "proxy-forwarder.py" >/dev/null 2>&1; then
+if ! pgrep -f "proxy_forwarder.py" >/dev/null 2>&1; then
     _start_proxy_forwarder
 fi
 

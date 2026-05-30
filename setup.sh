@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-FORWARDER_SRC="$SCRIPT_DIR/proxy-forwarder.py"
+FORWARDER_SRC="$SCRIPT_DIR/proxy_forwarder.py"
 MANAGER_SRC="$SCRIPT_DIR/proxy-manager.sh"
 
 echo "========================================"
@@ -16,12 +16,12 @@ echo "========================================"
 echo ""
 echo "[1/5] Installing scripts..."
 mkdir -p "$HOME/.hermes/scripts"
-cp "$FORWARDER_SRC" "$HOME/.hermes/scripts/proxy-forwarder.py"
+cp "$FORWARDER_SRC" "$HOME/.hermes/scripts/proxy_forwarder.py"
 cp "$MANAGER_SRC" "$HOME/.hermes/scripts/proxy-manager.sh"
-chmod +x "$HOME/.hermes/scripts/proxy-forwarder.py"
+chmod +x "$HOME/.hermes/scripts/proxy_forwarder.py"
 chmod +x "$HOME/.hermes/scripts/proxy-manager.sh"
 cp "$SCRIPT_DIR/bash-integration.sh" "$HOME/.hermes/scripts/bash-integration.sh"
-echo "  → $HOME/.hermes/scripts/proxy-forwarder.py"
+echo "  → $HOME/.hermes/scripts/proxy_forwarder.py"
 echo "  → $HOME/.hermes/scripts/proxy-manager.sh"
 
 # ── 2. Configure remote proxy ──
@@ -63,7 +63,7 @@ else
     cat >> "$HOME/.bashrc" << 'BASHEOF'
 
 # --- Smart Proxy Forwarder ---
-PROXY_SCRIPT="$HOME/.hermes/scripts/proxy-forwarder.py"
+PROXY_SCRIPT="$HOME/.hermes/scripts/proxy_forwarder.py"
 PROXY_CONFIG="$HOME/.hermes/scripts/proxy-config.json"
 PROXY_LOG="/tmp/proxy-forwarder.log"
 
@@ -75,7 +75,7 @@ _start_proxy_forwarder() {
         sleep 0.5
     done
 }
-if ! pgrep -f "proxy-forwarder.py" >/dev/null 2>&1; then
+if ! pgrep -f "proxy_forwarder.py" >/dev/null 2>&1; then
     _start_proxy_forwarder
 fi
 

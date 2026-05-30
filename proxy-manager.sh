@@ -29,10 +29,10 @@ start() {
 
     # Build and run command
     if [ -f "$CONFIG_FILE" ]; then
-        nohup python3 -u "$HOME/.hermes/scripts/proxy-forwarder.py" \
+        nohup python3 -u "$HOME/.hermes/scripts/proxy_forwarder.py" \
             --config "$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
     else
-        nohup python3 -u "$HOME/.hermes/scripts/proxy-forwarder.py" \
+        nohup python3 -u "$HOME/.hermes/scripts/proxy_forwarder.py" \
             --listen-port "$PORT" > "$LOG_FILE" 2>&1 &
     fi
     local new_pid=$!

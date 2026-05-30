@@ -1,5 +1,11 @@
 # Smart Proxy Forwarder
 
+> **安全警告：** 本工具**禁用了 TLS 证书验证**
+> (`check_hostname=False`, `verify_mode=CERT_NONE`)。
+> 远程代理服务器可以对你进行中间人攻击。
+> **仅在你信任的代理服务器上使用。**
+> 不要在不可信网络中使用。
+
 轻量级 DNS 防泄漏 CONNECT 代理转发器。**国内直连、国际走远程 HTTPS 代理**，自动分流。
 
 专为 WSL 用户设计——你在 Chrome 里用 VPN 插件/代理能翻墙，但 WSL 终端里的 curl、git、npm、Python、AI agent 等工具也能享受同样的能力，**且不泄漏 DNS 查询**。
@@ -12,7 +18,7 @@
 你的程序（curl / git / npm / Python / agent-browser）
     │  http_proxy=http://127.0.0.1:10808
     ▼
-┌─ proxy-forwarder.py ──────────────────────────────┐
+┌─ proxy_forwarder.py ──────────────────────────────┐
 │                                                    │
 │  域名在白名单？（百度/DeepSeek/B站等）               │
 │    → 直连（快速）                                   │
@@ -63,10 +69,16 @@ curl -v https://www.baidu.com     # → 也应成功（直连，更快）
 ### 1. 启动转发器
 
 ```bash
-python3 proxy-forwarder.py \
+python3 proxy_forwarder.py \
     --remote-host your-proxy.example.com \
     --remote-port 443 \
     --listen-port 10808
+```
+
+或者通过 pip 安装后再运行：
+```bash
+pip install .
+proxy-forwarder --remote-host your-proxy.example.com --remote-port 443
 ```
 
 ### 2. 设置代理环境变量
@@ -106,6 +118,7 @@ npm config set https-proxy http://127.0.0.1:10808
 | `--remote-host` | **必填** | 远程 HTTPS CONNECT 代理地址 |
 | `--remote-port` | `443` | 远程代理端口 |
 | `--config` | `""` | JSON 配置文件路径 |
+| `--version` | - | 显示版本号 |
 
 ### 配置文件 (`config.json`)
 
@@ -145,17 +158,28 @@ bash ~/.hermes/scripts/proxy-manager.sh start    # 启动
 
 ---
 
+## 安全说明
+
+- 本工具**禁用了 HTTPS 证书验证**，远程代理服务器可以看到你访问的域名（通过 CONNECT 请求的 host 字段）
+- 实际流量内容仍是端到端加密的（你的工具 → 目标服务器之间的 TLS）
+- 不要在不受信任的代理服务器上使用
+- 监听的本地端口（默认 10808）只绑定到 127.0.0.1，不会暴露到局域网
+
+---
+
 ## 项目文件结构
 
 | 文件 | 说明 |
 |------|------|
-| `proxy-forwarder.py` | 核心转发器（350 行，纯 Python 3 标准库） |
+| `proxy_forwarder.py` | 核心转发器（371 行，纯 Python 3 标准库） |
 | `proxy-manager.sh` | 管理脚本（start/stop/status） |
 | `setup.sh` | 一键安装脚本（复制文件 + 配置 bashrc + 配 git/npm） |
 | `bash-integration.sh` | `.bashrc` 集成片段（自动启动 + 环境变量） |
 | `config.example.json` | 配置模板 |
 | `README.md` | 本文档 |
 | `LICENSE` | MIT 开源协议 |
+| `pyproject.toml` | pip 安装配置 |
+| `CONTRIBUTING.md` | 贡献指南 |
 
 兼容任何 HTTPS CONNECT 代理（Chrome VPN 插件、Squid、Caddy、mitmproxy 等）。
 
