@@ -9,9 +9,28 @@
 [![License](https://img.shields.io/github/license/601494530-create/smart-proxy-forwarder)](LICENSE)
 [![CI](https://github.com/601494530-create/smart-proxy-forwarder/actions/workflows/ci.yml/badge.svg)](https://github.com/601494530-create/smart-proxy-forwarder/actions)
 
-轻量级 DNS 防泄漏 CONNECT 代理转发器。**国内直连、国际走远程 HTTPS 代理**，自动分流。
+轻量级 DNS 防泄漏 CONNECT 代理转发器。**国内直连、国际走远程代理**，自动分流，零依赖。
 
-专为 WSL 用户设计——你在 Chrome 里用 VPN 插件/代理能翻墙，但 WSL 终端里的 curl、git、npm、Python、AI agent 等工具也能享受同样的能力，**且不泄漏 DNS 查询**。
+专为 WSL 用户设计——你在 Chrome 里用 VPN 插件能翻墙，但 WSL 终端里的 curl、git、npm、Python、AI agent 也能享受同样的能力，**且不泄漏 DNS 查询**。
+
+---
+
+## 功能总览
+
+| 功能 | 说明 |
+|------|------|
+| ✅ **智能分流** | 域名白名单直连 / IP 查归属 / 其余默认走代理 |
+| ✅ **双上游协议** | HTTPS CONNECT（默认） + **SOCKS5**（新增） |
+| ✅ **多上游/主备** | 逗号分隔多个代理，随机切换，一个挂了不影响 |
+| ✅ **TLS 连接池** | 预建立 TLS 连接，减少握手延迟 |
+| ✅ **Web 仪表盘** | `http://127.0.0.1:10809/` 实时状态，中英文切换 |
+| ✅ **REST API** | `/stats` 返回 JSON，可对接监控系统 |
+| ✅ **请求日志** | `--log-requests` 记录每次连接目标、路由、耗时 |
+| ✅ **健康检查** | 每 30 秒检测上游代理，状态显示在仪表盘 |
+| ✅ **连接统计** | 总连接数、活跃连接数、上下行流量、运行时长 |
+| ✅ **DNS 防泄漏** | 路由判定从不本地解析域名 |
+| ✅ **一键安装** | `bash setup.sh your-proxy.com 443` |
+| ✅ **Docker + systemd** | 容器部署 + 系统服务管理 |
 
 ---
 
@@ -27,23 +46,27 @@
 │    → 直连（快速）                                   │
 │                                                    │
 │  目标是纯 IP 地址？                                 │
-│    → 查国内 IP 段 → 国内直连 / 国际代理              │
+│    → 查内置 44 个国内 IP 段 → 国内直连 / 国际代理    │
 │                                                    │
 │  其他域名                                           │
 │    → 默认走远程代理（DNS 防泄漏）                    │
-│      └─ TLS 隧道 → 你的代理服务器 → 国际互联网       │
+│      ├─ HTTPS CONNECT → TLS 隧道 → 代理 → 目标     │
+│      └─ SOCKS5       → TCP + SOCKS5 握手 → 目标    │
 └────────────────────────────────────────────────────┘
 ```
 
-**没有 DNS 泄漏：** 路由判定从不进行本地 DNS 解析。只有代理服务器本身会在启动时通过系统 DNS 解析一次 —— 这是任何 VPN/代理都不可避免的。
+**没有 DNS 泄漏：** 路由判定从不进行本地 DNS 解析。只有代理服务器本身会在启动时通过系统 DNS 解析一次。
 
 ---
 
 ## 运行环境
 
 - **Python 3.8+**（只用了标准库，无需 pip 安装任何依赖）
-- **Linux / WSL2**（实际上任何有 Python 的地方都能跑）
-- 一个 **HTTPS CONNECT 代理服务器**（比如 Chrome VPN 插件的上游服务器、VPS 上搭的 squid/caddy 等）
+- **Linux / WSL2**（任何有 Python 的地方都能跑）
+- **上游支持：** HTTPS CONNECT 代理 或 SOCKS5 代理
+  - Chrome VPN 插件（FanVPN 等）
+  - Shadowsocks / V2Ray / 机场订阅
+  - SSH 隧道（`ssh -D 1080`）
 
 ---
 
@@ -54,15 +77,14 @@
 git clone https://github.com/601494530-create/smart-proxy-forwarder.git
 cd smart-proxy-forwarder
 
-# 2. 一键安装（填你的代理服务器地址）
+# 2. 一键安装
 bash setup.sh your-proxy.example.com 443
 
-# 2a. 如果代理使用自签名证书，加第三个参数：
+# 如果代理使用自签名证书：
 bash setup.sh your-proxy.example.com 443 true
 
 # 3. 重新打开终端或执行 source
 source ~/.bashrc
-# 如果用的是 zsh： source ~/.zshrc
 
 # 4. 验证
 curl -v https://www.google.com    # → 应成功（走代理）
@@ -76,16 +98,28 @@ curl -v https://www.baidu.com     # → 也应成功（直连，更快）
 ### 1. 启动转发器
 
 ```bash
+# HTTPS CONNECT 上游（默认）
 python3 proxy_forwarder.py \
     --remote-host your-proxy.example.com \
-    --remote-port 443 \
-    --listen-port 10808
+    --remote-port 443
+
+# SOCKS5 上游
+python3 proxy_forwarder.py \
+    --upstream-type socks5 \
+    --remote-host 127.0.0.1 \
+    --remote-port 1080
+
+# 多上游 + 连接池
+python3 proxy_forwarder.py \
+    --remote-host "proxy1.com:443,proxy2.com:8443" \
+    --pool-size 8
 ```
 
 或者通过 pip 安装后再运行：
+
 ```bash
 pip install .
-proxy-forwarder --remote-host your-proxy.example.com --remote-port 443
+proxy-forwarder --remote-host your-proxy.example.com
 ```
 
 ### 2. 设置代理环境变量
@@ -122,10 +156,14 @@ npm config set https-proxy http://127.0.0.1:10808
 |------|--------|------|
 | `--listen-host` | `127.0.0.1` | 本地监听地址 |
 | `--listen-port` | `10808` | 本地监听端口 |
-| `--remote-host` | **必填** | 远程 HTTPS CONNECT 代理地址 |
+| `--remote-host` | **必填** | 远程代理地址（逗号分隔实现多上游） |
 | `--remote-port` | `443` | 远程代理端口 |
+| `--upstream-type` | `connect` | 上游协议：`connect`（HTTPS CONNECT）/ `socks5` |
+| `--pool-size` | `4` | TLS 连接池大小 |
 | `--config` | `""` | JSON 配置文件路径 |
 | `--insecure` / `-k` | `false` | 跳过 TLS 证书验证 |
+| `--log-requests` | `false` | 记录每次 CONNECT 请求 |
+| `--api-port` | `10809` | REST API / 仪表盘端口 |
 | `--version` | - | 显示版本号 |
 
 ### 环境变量
@@ -138,15 +176,19 @@ npm config set https-proxy http://127.0.0.1:10808
 
 ### 配置文件 (`config.json`)
 
-安装后配置文件位于 `~/.config/proxy-forwarder/config.json`：
+安装后位于 `~/.config/proxy-forwarder/config.json`：
 
 ```json
 {
   "remote": { "host": "your-proxy.com", "port": 443 },
   "listen": { "host": "127.0.0.1", "port": 10808 },
   "insecure": false,
+  "upstream_type": "connect",
+  "pool_size": 4,
+  "log_requests": false,
   "china_ip_list_url": "",
-  "direct_domains": ["*.my-corp.com"]
+  "direct_domains": ["*.my-corp.com"],
+  "api_port": 10809
 }
 ```
 
@@ -157,14 +199,113 @@ npm config set https-proxy http://127.0.0.1:10808
 ## 管理命令
 
 ```bash
-bash ~/.config/proxy-forwarder/proxy-manager.sh status   # 查看运行状态
+bash ~/.config/proxy-forwarder/proxy-manager.sh status   # 运行状态
+bash ~/.config/proxy-forwarder/proxy-manager.sh logs     # 查看日志
 bash ~/.config/proxy-forwarder/proxy-manager.sh restart  # 重启
 bash ~/.config/proxy-forwarder/proxy-manager.sh stop     # 停止
 bash ~/.config/proxy-forwarder/proxy-manager.sh start    # 启动
 
-# 切换到不同端口
+# 切换端口
 PROXY_PORT=9090 bash ~/.config/proxy-forwarder/proxy-manager.sh start
 ```
+
+**状态输出示例：**
+
+```
+  Running
+   PID:      11454
+   Port:     10808
+   RAM:      27MB
+   Uptime:   1h23m
+   Conns:    42 total, 0 active
+   Traffic:  2343 KB (22 KB ↓ / 2321 KB ↑)
+   Health:   ✅ alive
+```
+
+---
+
+## Web 仪表盘
+
+浏览器打开 `http://127.0.0.1:10809/`：
+
+```
+┌──────────────────────────────────────┐
+│  🔄 代理转发器      [中文] [EN]     │
+│                                      │
+│  状态       正常                     │
+│  运行时长   1h23m                    │
+│  连接数     42 总 / 0 活跃           │
+│  流量       2343 KB                  │
+│  上游       fan.226278.xyz:443       │
+│  类型       connect                  │
+│  池大小     4                        │
+│  版本       1.2.0                    │
+└──────────────────────────────────────┘
+```
+
+每 5 秒自动刷新，右上角按钮切换中英文。
+
+---
+
+## REST API
+
+```bash
+curl http://127.0.0.1:10809/stats
+# → {"uptime":"1h23m","total_connections":42,"health":"alive",
+#     "upstream_type":"connect","pool_size":4,...}
+```
+
+---
+
+## 请求日志
+
+```bash
+python3 proxy_forwarder.py --remote-host x.com --log-requests
+
+# 输出示例：
+# [14:00:01] www.google.com:443 → proxy (DNS-safe) 2.1s
+# [14:00:02] www.baidu.com:443 → direct (direct-domain) 0.1s
+# [14:00:03] github.com:443 → proxy (DNS-safe) → proxy1.com:443 2.5s
+```
+
+---
+
+## 多上游 / 故障切换
+
+```bash
+# 逗号分隔，随机选择
+python3 proxy_forwarder.py \
+    --remote-host "hk-proxy.com:443,jp-proxy.com:8443,us-proxy.com:443"
+```
+
+健康检查同时测试所有上游，仪表盘显示当前活跃的上游。
+
+---
+
+## SOCKS5 上游
+
+```bash
+# SSH 隧道
+ssh -D 1080 your-server
+python3 proxy_forwarder.py --upstream-type socks5 --remote-host 127.0.0.1 --remote-port 1080
+
+# 机场 SOCKS5 节点
+python3 proxy_forwarder.py --upstream-type socks5 --remote-host node.example.com --remote-port 1080
+```
+
+---
+
+## TLS 连接池
+
+```bash
+# 默认池大小 4
+python3 proxy_forwarder.py --remote-host x.com --pool-size 4
+
+# 高并发场景加大池
+python3 proxy_forwarder.py --remote-host x.com --pool-size 16
+```
+
+连接 5 分钟自动回收，失效自动重连。仅对 HTTPS CONNECT 上游生效。
 
 ---
 
@@ -176,96 +317,61 @@ PROXY_PORT=9090 bash ~/.config/proxy-forwarder/proxy-manager.sh start
 2. 纯 IP 地址 → 查内置中国 IP 段
 3. 其他域名 → **默认走代理**，不做本地解析
 
-唯一会离开你机器的 DNS 查询是代理服务器本身（`--remote-host`） —— 一次不可避免的连接。
+唯一会离开你机器的 DNS 查询是代理服务器本身（`--remote-host`）。
 
 ---
 
 ## 安全说明
 
-- **TLS 证书验证默认开启。** 如果代理服务器使用自签名或证书不匹配的证书，需加 `--insecure`/`-k` 参数
+- **TLS 证书验证默认开启。** 需跳过时加 `--insecure`/`-k`
   ```bash
   python3 proxy_forwarder.py --remote-host example.com --insecure
   ```
-- 使用 `--insecure` 时，远程代理服务器可以对你进行中间人攻击
-- 仅在**你信任的代理服务器**上使用 `--insecure`
-- 实际流量内容仍是端到端加密的（你的工具 → 目标服务器之间的 TLS），代理只能看到你访问了哪个域名
-- 监听的本地端口（默认 10808）只绑定到 127.0.0.1，不会暴露到局域网
+- `--insecure` 时代理服务器可进行中间人攻击，**仅用于你信任的代理**
+- 流量内容端到端加密（你的工具 → 目标服务器）
+- REST API 和代理端口只绑定 `127.0.0.1`，不暴露到局域网
 
 ---
 
-## 常见问题
+## Docker
 
-### 转发器启动失败怎么办？
-
-检查日志：
 ```bash
-cat /tmp/proxy-forwarder.log
+docker build -t proxy-forwarder .
+docker run -d --restart unless-stopped --name proxy \
+  -p 10808:10808 \
+  -e REMOTE_HOST=your-proxy.com \
+  proxy-forwarder
 ```
-
-常见原因：
-- `--remote-host` 未设置或为空 → 启动日志会显示 ERROR
-- 远程代理服务器不可达 → 检查网络连接
-- Python 版本过低 → 需要 3.8+
-- 端口被占用 → 换端口：`PROXY_PORT=9090 bash setup.sh ...`
-
-### Google/GitHub 能访问，但百度/国内站很慢？
-
-说明国内站走了代理。正常应该直连（百度应 < 0.2s）。检查：
-- 白名单是否覆盖了该域名？
-- 如果是未覆盖的国内站，提交 Issue 补充白名单
-
-### 国内站能访问，但 Google/GitHub 打不开？
-
-转发器可能没启动，或者远程代理服务器不可用。检查：
-```bash
-bash ~/.config/proxy-forwarder/proxy-manager.sh status
-```
-如果显示 "Running"，检查 `/tmp/proxy-forwarder.log` 看是否有连接错误。
-
-### 如何更换代理服务器？
-
-编辑配置文件：
-```bash
-vim ~/.config/proxy-forwarder/config.json
-# 修改 remote.host 和 remote.port
-bash ~/.config/proxy-forwarder/proxy-manager.sh restart
-```
-
-### 如何更改端口？
-
-所有脚本都支持 `PROXY_PORT` 环境变量：
-```bash
-PROXY_PORT=9090 bash setup.sh your-proxy.com 443
-PROXY_PORT=9090 bash ~/.config/proxy-forwarder/proxy-manager.sh start
-export PROXY_PORT=9090  # 永久设置
-```
-
-### macOS 能用吗？
-
-代码层面可以（纯 Python），但 `setup.sh` 和 `proxy-manager.sh` 是针对 Linux 的。macOS 用户可以：
-```bash
-pip install .
-proxy-forwarder --remote-host your-proxy.com --insecure
-```
-
-### 为什么要 `--insecure`？
-
-多数 Chrome VPN 插件的代理服务器使用自签名证书或 IP 地址直连，系统证书链无法验证。这是常见的，**只要代理服务器是你自己的**（或你信任的），加 `--insecure` 是安全的。
 
 ---
 
-## 项目文件结构
+## systemd
 
-安装后文件位于 `~/.config/proxy-forwarder/`：
+```bash
+sudo cp deploy/proxy-forwarder.service /etc/systemd/system/
+sudo systemctl enable proxy-forwarder
+sudo systemctl start proxy-forwarder
+sudo systemctl status proxy-forwarder
+```
+
+---
+
+## 项目文件
 
 | 文件 | 说明 |
 |------|------|
-| `proxy_forwarder.py` | 核心转发器 |
-| `proxy-manager.sh` | 管理脚本 |
-| `bash-integration.sh` | Shell 集成片段（供手动安装用） |
-| `config.json` | 配置文件（由 setup.sh 创建） |
+| `proxy_forwarder.py` | 核心转发器（762 行，纯 Python 标准库） |
+| `proxy-manager.sh` | 管理脚本（status/logs/start/stop/restart） |
+| `setup.sh` | 一键安装脚本 |
+| `bash-integration.sh` | Shell 集成片段 |
+| `config.example.json` | 配置模板 |
+| `deploy/proxy-forwarder.service` | systemd 服务单元 |
+| `Dockerfile` | 容器构建 |
+| `README.en.md` | 英文文档 |
+| `CHANGELOG.md` | 变更记录 |
+| `tests/` | **42 个测试**（单元 + 集成） |
 
-兼容任何 HTTPS CONNECT 代理（Chrome VPN 插件、Squid、Caddy、mitmproxy 等）。
+兼容 HTTPS CONNECT 和 SOCKS5 代理。
 
 ---
 
