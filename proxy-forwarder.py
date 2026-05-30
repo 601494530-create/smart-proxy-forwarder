@@ -10,6 +10,7 @@ DNS leak-free: routing decisions never trigger local DNS lookups.
 import argparse
 import ipaddress
 import json
+import logging
 import os
 import signal
 import socket
@@ -17,6 +18,8 @@ import ssl
 import sys
 import threading
 import urllib.request
+
+VERSION = "1.0.0"
 
 BUFSIZE = 65536
 CHINALIST_CACHE = "/tmp/proxy_china_ip_list.txt"
@@ -142,23 +145,30 @@ def is_ip_string(host: str) -> bool:
     return host.replace(".", "").replace(":", "").isdigit()
 
 
-def relay_traffic(src, dst):
-    """Bidirectional traffic relay with idle timeout."""
+RELAY_IDLE_TIMEOUT = 300  # reap idle connections after 5 min
+
+
+def relay_traffic(src, dst, shutdown_event):
+    """Bidirectional traffic relay with idle timeout.
+
+    Uses shutdown_event to signal the paired relay to stop when one direction closes.
+    """
     try:
         src.settimeout(RELAY_IDLE_TIMEOUT)
         dst.settimeout(RELAY_IDLE_TIMEOUT)
-        while True:
+        while not shutdown_event.is_set():
             data = src.recv(BUFSIZE)
             if not data:
                 break
             dst.sendall(data)
     except socket.timeout:
-        pass
+        pass  # idle timeout — normal
     except OSError:
-        pass
+        pass  # connection closed
     except Exception:
-        pass
+        pass  # safety net
     finally:
+        shutdown_event.set()
         for s in (src, dst):
             try:
                 s.close()
@@ -180,7 +190,10 @@ def handle_client(client, china_set, direct_domains, remote_host, remote_port):
 
         method = parts[0]
         if method != "CONNECT":
-            client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\n\r\n")
+            try:
+                client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\n\r\n")
+            except OSError:
+                pass
             return
 
         target = parts[1]
@@ -231,8 +244,9 @@ def handle_client(client, china_set, direct_domains, remote_host, remote_port):
                 return
 
             client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            t1 = threading.Thread(target=relay_traffic, args=(client, tls_remote), daemon=True)
-            t2 = threading.Thread(target=relay_traffic, args=(tls_remote, client), daemon=True)
+            shutdown_event = threading.Event()
+            t1 = threading.Thread(target=relay_traffic, args=(client, tls_remote, shutdown_event), daemon=True)
+            t2 = threading.Thread(target=relay_traffic, args=(tls_remote, client, shutdown_event), daemon=True)
             t1.start()
             t2.start()
             t1.join()
@@ -241,8 +255,9 @@ def handle_client(client, china_set, direct_domains, remote_host, remote_port):
             # ── Direct connection ──
             remote = socket.create_connection((dst_host, dst_port), timeout=15)
             client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            t1 = threading.Thread(target=relay_traffic, args=(client, remote), daemon=True)
-            t2 = threading.Thread(target=relay_traffic, args=(remote, client), daemon=True)
+            shutdown_event = threading.Event()
+            t1 = threading.Thread(target=relay_traffic, args=(client, remote, shutdown_event), daemon=True)
+            t2 = threading.Thread(target=relay_traffic, args=(remote, client, shutdown_event), daemon=True)
             t1.start()
             t2.start()
             t1.join()
@@ -282,7 +297,13 @@ def main():
                         help="Remote HTTPS CONNECT proxy port (default: 443)")
     parser.add_argument("--config", default="",
                         help="Path to config JSON file")
+    parser.add_argument("--version", action="store_true",
+                        help="Show version and exit")
     args = parser.parse_args()
+
+    if args.version:
+        print(f"Smart Proxy Forwarder v{VERSION}")
+        sys.exit(0)
 
     # Merge config file overrides
     cfg = load_config(args.config)
@@ -292,8 +313,8 @@ def main():
     listen_port = args.listen_port or cfg.get("listen", {}).get("port", 10808)
 
     if not remote_host:
-        print("ERROR: --remote-host is required (or set in config file)")
-        print("  Example: --remote-host your-proxy.example.com --remote-port 443")
+        print("ERROR: --remote-host is required (or set in config file)", file=sys.stderr)
+        print("  Example: --remote-host your-proxy.example.com --remote-port 443", file=sys.stderr)
         sys.exit(1)
 
     # Load China IP set
@@ -343,7 +364,7 @@ def main():
             )
             t.start()
         except (OSError, ValueError):
-            break
+            continue  # log and move on, don't die on one bad accept
 
 
 if __name__ == "__main__":

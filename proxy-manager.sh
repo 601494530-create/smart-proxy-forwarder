@@ -2,9 +2,22 @@
 # Smart Proxy Forwarder — management script
 PORT=10808
 LOG_FILE="/tmp/proxy-forwarder.log"
+CONFIG_FILE="$HOME/.hermes/scripts/proxy-config.json"
 
 forwarder_pid() {
-    pgrep -f "proxy-forwarder.py" | head -1
+    # Match only the exact Python script, not grep or other processes
+    pgrep -f "^python3.*proxy-forwarder\.py" | head -1
+}
+
+_ss_check() {
+    # Use ss if available, fall back to /proc/net/tcp
+    if command -v ss &>/dev/null; then
+        ss -tlnp 2>/dev/null | grep -q ":$PORT "
+    else
+        # Check /proc/net/tcp for listening port (hex format)
+        local hex_port=$(printf "%04X" "$PORT")
+        grep -q ":$hex_port " /proc/net/tcp 2>/dev/null
+    fi
 }
 
 start() {
@@ -13,14 +26,24 @@ start() {
         echo "  Forwarder already running (PID $pid, port $PORT)"
         return 0
     fi
-    nohup python3 -u "$HOME/.hermes/scripts/proxy-forwarder.py" \
-        --listen-port "$PORT" > "$LOG_FILE" 2>&1 &
+
+    # Build command: use config if exists, otherwise --remote-host is required
+    local CMD="python3 -u \"$HOME/.hermes/scripts/proxy-forwarder.py\""
+    if [ -f "$CONFIG_FILE" ]; then
+        CMD="$CMD --config \"$CONFIG_FILE\""
+    else
+        CMD="$CMD --listen-port $PORT"
+    fi
+
+    nohup bash -c "$CMD" > "$LOG_FILE" 2>&1 &
     local new_pid=$!
+
     for i in $(seq 1 10); do
-        if ss -tlnp 2>/dev/null | grep -q ":$PORT "; then break; fi
+        if _ss_check; then break; fi
         sleep 0.5
     done
-    if ss -tlnp 2>/dev/null | grep -q ":$PORT "; then
+
+    if _ss_check; then
         echo "  Forwarder started (PID $new_pid, port $PORT)"
     else
         echo "  Start failed, check: $LOG_FILE"
@@ -48,6 +71,7 @@ status() {
         echo "   Port:  $PORT"
         echo "   RAM:   ${mem}MB"
         echo "   Log:   $LOG_FILE"
+        echo "   Conf:  $CONFIG_FILE"
     else
         echo "  Stopped"
     fi
