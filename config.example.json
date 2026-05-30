@@ -1,0 +1,28 @@
+{
+  "//_comment": "Smart Proxy Forwarder — configuration file (optional).",
+  "//_comment2": "Command-line args take precedence over these values.",
+
+  "remote": {
+    "host": "",
+    "port": 443,
+    "//_comment": "Your HTTPS CONNECT proxy server. Example: 'your-server.com'"
+  },
+
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 10808
+  },
+
+  "china_ip_list_url": "",
+
+  "direct_domains": [
+    "*.my-company.com",
+    "*.internal-service.cn"
+  ],
+
+  "//_extra_domains": [
+    "Add your own direct-connect domains here.",
+    "They are merged with the built-in list which already",
+    "covers most major Chinese services (Baidu, Tencent, etc.)."
+  ]
+}
