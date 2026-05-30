@@ -27,15 +27,14 @@ start() {
         return 0
     fi
 
-    # Build command: use config if exists, otherwise --remote-host is required
-    local CMD="python3 -u \"$HOME/.hermes/scripts/proxy-forwarder.py\""
+    # Build and run command
     if [ -f "$CONFIG_FILE" ]; then
-        CMD="$CMD --config \"$CONFIG_FILE\""
+        nohup python3 -u "$HOME/.hermes/scripts/proxy-forwarder.py" \
+            --config "$CONFIG_FILE" > "$LOG_FILE" 2>&1 &
     else
-        CMD="$CMD --listen-port $PORT"
+        nohup python3 -u "$HOME/.hermes/scripts/proxy-forwarder.py" \
+            --listen-port "$PORT" > "$LOG_FILE" 2>&1 &
     fi
-
-    nohup bash -c "$CMD" > "$LOG_FILE" 2>&1 &
     local new_pid=$!
 
     for i in $(seq 1 10); do

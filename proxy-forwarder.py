@@ -10,7 +10,6 @@ DNS leak-free: routing decisions never trigger local DNS lookups.
 import argparse
 import ipaddress
 import json
-import logging
 import os
 import signal
 import socket
@@ -143,9 +142,6 @@ def is_direct_domain(host: str, direct_domains: set) -> bool:
 def is_ip_string(host: str) -> bool:
     """Check if host is a raw IPv4/IPv6 string (no DNS resolution needed)."""
     return host.replace(".", "").replace(":", "").isdigit()
-
-
-RELAY_IDLE_TIMEOUT = 300  # reap idle connections after 5 min
 
 
 def relay_traffic(src, dst, shutdown_event):

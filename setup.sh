@@ -100,7 +100,7 @@ if command -v agent-browser &>/dev/null; then
     echo "  ✓ agent-browser already installed"
 else
     echo "  Installing agent-browser (this may take a while)..."
-    if npm install -g agent-browser 2>/dev/null; then
+    if npm install -g agent-browser > /tmp/agent-browser-install.log 2>&1; then
         echo "  ✓ agent-browser installed, installing browser..."
         agent-browser install 2>&1 | tail -3 || echo "  ⚠ Browser install skipped (run 'agent-browser install' later)"
     else

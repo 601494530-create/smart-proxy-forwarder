@@ -3,10 +3,13 @@
 # bash-integration.sh — Add to ~/.bashrc (or source from it)
 #
 # Smart Proxy Forwarder auto-start + env variables.
+# After running setup.sh, the config file at ~/.hermes/scripts/proxy-config.json
+# is used for remote proxy settings.
 # ============================================================================
 
 # ── Paths ──
 PROXY_SCRIPT="$HOME/.hermes/scripts/proxy-forwarder.py"
+PROXY_CONFIG="$HOME/.hermes/scripts/proxy-config.json"
 PROXY_LOG="/tmp/proxy-forwarder.log"
 
 # ── Auto-start forwarder if not running ──
@@ -14,8 +17,12 @@ _start_proxy_forwarder() {
     if ss -tlnp 2>/dev/null | grep -q ":10808 "; then
         return 0
     fi
-    nohup python3 -u "$PROXY_SCRIPT" --remote-host "your-proxy-server.com" \
-        --remote-port 443 --listen-port 10808 > "$PROXY_LOG" 2>&1 &
+    if [ -f "$PROXY_CONFIG" ]; then
+        nohup python3 -u "$PROXY_SCRIPT" --config "$PROXY_CONFIG" > "$PROXY_LOG" 2>&1 &
+    else
+        echo "proxy-forwarder: no config found at $PROXY_CONFIG" >&2
+        return 1
+    fi
     for i in $(seq 1 10); do
         if ss -tlnp 2>/dev/null | grep -q ":10808 "; then break; fi
         sleep 0.5
