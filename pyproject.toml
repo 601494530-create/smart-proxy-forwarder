@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "smart-proxy-forwarder"
@@ -32,6 +32,9 @@ Repository = "https://github.com/601494530-create/smart-proxy-forwarder"
 
 [project.scripts]
 proxy-forwarder = "proxy_forwarder:main"
+
+[tool.setuptools]
+py-modules = ["proxy_forwarder"]
 
 [tool.setuptools.packages.find]
 include = ["proxy_forwarder*"]
