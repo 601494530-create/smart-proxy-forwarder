@@ -176,7 +176,7 @@ def relay_traffic(src, dst, shutdown_event):
                 pass
 
 
-def handle_client(client, china_set, direct_domains, remote_host, remote_port):
+def handle_client(client, china_set, direct_domains, remote_host, remote_port, insecure=False):
     """Handle one CONNECT request — route domestic direct, international via proxy."""
     try:
         data = client.recv(BUFSIZE)
@@ -227,8 +227,12 @@ def handle_client(client, china_set, direct_domains, remote_host, remote_port):
         if use_proxy:
             # ── Route via remote HTTPS proxy ──
             ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+            if insecure:
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            else:
+                ctx.check_hostname = True
+                ctx.verify_mode = ssl.CERT_REQUIRED
 
             remote = socket.create_connection((remote_host, remote_port), timeout=15)
             tls_remote = ctx.wrap_socket(remote, server_hostname=remote_host)
@@ -297,6 +301,8 @@ def main():
                         help="Remote HTTPS CONNECT proxy port (default: 443)")
     parser.add_argument("--config", default="",
                         help="Path to config JSON file")
+    parser.add_argument("--insecure", "-k", action="store_true",
+                        help="Skip TLS certificate verification for remote proxy (default: verify)")
     parser.add_argument("--version", action="store_true",
                         help="Show version and exit")
     args = parser.parse_args()
@@ -311,6 +317,8 @@ def main():
     remote_port = args.remote_port or cfg.get("remote", {}).get("port", 443)
     listen_host = args.listen_host or cfg.get("listen", {}).get("host", "127.0.0.1")
     listen_port = args.listen_port or cfg.get("listen", {}).get("port", 10808)
+
+    insecure = args.insecure or cfg.get("insecure", False)
 
     if not remote_host:
         print("ERROR: --remote-host is required (or set in config file)", file=sys.stderr)
@@ -341,6 +349,7 @@ def main():
     print(f"  Remote:     {remote_host}:{remote_port}")
     print(f"  CN CIDRs:   {len(china._networks)} ranges")
     print(f"  Direct Doms:{len(direct_domains)} rules")
+    print(f"  TLS Verify: {'OFF (--insecure)' if insecure else 'ON'}")
     print(f"\n  Set http_proxy=http://{listen_host}:{listen_port}")
     print(f"  Set https_proxy=http://{listen_host}:{listen_port}")
     print(f"\n  CN → Direct | INTL → Proxy (auto, DNS-safe)")
@@ -359,7 +368,7 @@ def main():
             client, addr = server.accept()
             t = threading.Thread(
                 target=handle_client,
-                args=(client, china, direct_domains, remote_host, remote_port),
+                args=(client, china, direct_domains, remote_host, remote_port, insecure),
                 daemon=True,
             )
             t.start()

@@ -13,6 +13,8 @@
     "port": 10808
   },
 
+  "insecure": false,
+
   "china_ip_list_url": "",
 
   "direct_domains": [
