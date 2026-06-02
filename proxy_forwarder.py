@@ -14,9 +14,11 @@ import json
 import os
 import queue
 import random
+import re
 import signal
 import socket
 import ssl
+import subprocess
 import sys
 import threading
 import time
@@ -196,6 +198,48 @@ class TlsConnectionPool:
 
 
 pool = TlsConnectionPool()
+
+
+# ── FanVPN node watcher ──
+
+CHROME_EXT_DIR = (
+    "/mnt/c/Users/Administrator/AppData/Local/Google/Chrome/User Data"
+    "/Default/Local Extension Settings/efcglfachpgebjoeilpbmplfmacjajem"
+)
+
+
+def get_fanvpn_active_node() -> str:
+    """Read FanVPN's current active node from Chrome extension storage.
+    Returns 'host:port' string, or empty string if unable to detect."""
+    log_files = []
+    try:
+        for f in os.listdir(CHROME_EXT_DIR):
+            if f.endswith(".log"):
+                log_files.append(os.path.join(CHROME_EXT_DIR, f))
+    except (FileNotFoundError, PermissionError, NotADirectoryError):
+        return ""
+
+    for path in sorted(log_files, key=os.path.getmtime, reverse=True)[:2]:
+        try:
+            result = subprocess.run(
+                ["strings", path], capture_output=True, text=True, timeout=5
+            )
+            content = result.stdout
+            # Find lastNode marker — it indicates the currently active server
+            match = re.search(r'lastNode[\s\S]{0,50}"fan[^"]+\.xyz"', content)
+            if match:
+                server = re.search(r'"fan[^"]+\.xyz"', match.group())
+                if server:
+                    host = server.group().strip('"')
+                    # Get port for this server
+                    port_match = re.search(
+                        rf'server":"{re.escape(host)}".*?port":(\d+)', content
+                    )
+                    port = port_match.group(1) if port_match else "443"
+                    return f"{host}:{port}"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            continue
+    return ""
 
 
 # ── REST API + Dashboard ──
@@ -634,6 +678,8 @@ def main():
     parser.add_argument("--version", action="store_true")
     parser.add_argument("--check-update", action="store_true",
                         help="Check GitHub for newer version and exit")
+    parser.add_argument("--auto-detect-fanvpn", action="store_true",
+                        help="Auto-detect FanVPN node changes from Chrome extension and switch upstream")
     parser.epilog = """Examples:
   # Basic HTTPS CONNECT proxy
   proxy_forwarder.py --remote-host your-proxy.com --remote-port 443
@@ -674,6 +720,7 @@ def main():
     api_port = args.api_port or cfg.get("api_port", STATS_API_PORT)
     pool_size = args.pool_size or cfg.get("pool_size", POOL_SIZE)
     upstream_type = args.upstream_type or cfg.get("upstream_type", "connect")
+    auto_detect = args.auto_detect_fanvpn or cfg.get("auto_detect_fanvpn", False)
 
     if upstream_type not in ("connect", "socks5"):
         upstream_type = "connect"
@@ -733,6 +780,7 @@ def main():
     print(f"  Log reqs:   {'ON' if log_requests else 'OFF'}")
     print(f"  Stats:      {STATS_FILE}")
     print(f"  Health:     checking every {HEALTH_CHECK_INTERVAL}s")
+    print(f"  Auto FanVPN: {'ON' if auto_detect else 'OFF'}")
     print(f"\n  Set http_proxy=http://{listen_host}:{listen_port}")
     print(f"  Set https_proxy=http://{listen_host}:{listen_port}")
     print(f"\n  CN → Direct | INTL → Proxy (auto, DNS-safe)")
@@ -746,6 +794,53 @@ def main():
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
+
+    # ── FanVPN auto-detect watcher ──
+    if auto_detect:
+        _last_node = ""
+
+        def _watch_fanvpn():
+            nonlocal _last_node
+            while True:
+                try:
+                    node = get_fanvpn_active_node()
+                    if node and node != _last_node:
+                        _last_node = node
+                        host, _, port_str = node.partition(":")
+                        port = int(port_str) if port_str else 443
+                        # Test the new node before switching
+                        try:
+                            s = socket.create_connection((host, port), timeout=10)
+                            if upstream_type == "connect":
+                                ctx = ssl.create_default_context()
+                                ctx.check_hostname = False
+                                ctx.verify_mode = ssl.CERT_NONE
+                                tls = ctx.wrap_socket(s, server_hostname=host)
+                                tls.sendall(
+                                    b"CONNECT www.baidu.com:443 HTTP/1.1\r\n"
+                                    b"Host: www.baidu.com:443\r\n\r\n"
+                                )
+                                resp = tls.recv(4)
+                                tls.close()
+                                if b"200" not in resp and b"HTTP" not in resp:
+                                    continue  # Node not working, skip
+                            else:
+                                s.close()
+                        except Exception:
+                            continue  # Node unreachable, skip
+
+                        # Update upstream
+                        upstreams.clear()
+                        upstreams.append((host, port))
+                        pool.drain()
+                        print(f"[FanVPN] Switched to {host}:{port}")
+                        with stats.lock:
+                            stats.active_upstream = f"{host}:{port}"
+                except Exception:
+                    pass
+                time.sleep(15)  # Check every 15 seconds
+
+        threading.Thread(target=_watch_fanvpn, daemon=True).start()
 
     # Stats writer
     def _write_stats():
