@@ -254,7 +254,8 @@ def get_fanvpn_active_node() -> str:
                     host = server.group().strip('"')
                     # Get port for this server
                     port_match = re.search(
-                        rf'server":"{re.escape(host)}".*?port":(\d+)', content
+                        rf'server":"{re.escape(host)}".*?port":(\d+)',
+                        content, re.DOTALL
                     )
                     port = port_match.group(1) if port_match else "443"
                     return f"{host}:{port}"
