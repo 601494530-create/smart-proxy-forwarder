@@ -67,7 +67,7 @@ Only the proxy server itself is resolved once via system DNS — unavoidable.
 ## Quick Start
 
 ```bash
-git clone https://github.com/601494530-create/smart-proxy-forwarder.git
+git clone https://github.com/pocraft/smart-proxy-forwarder.git
 cd smart-proxy-forwarder
 
 # One-click install

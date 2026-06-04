@@ -27,8 +27,8 @@ classifiers = [
 requires-python = ">=3.8"
 
 [project.urls]
-Homepage = "https://github.com/601494530-create/smart-proxy-forwarder"
-Repository = "https://github.com/601494530-create/smart-proxy-forwarder"
+Homepage = "https://github.com/pocraft/smart-proxy-forwarder"
+Repository = "https://github.com/pocraft/smart-proxy-forwarder"
 
 [project.scripts]
 proxy-forwarder = "proxy_forwarder:main"

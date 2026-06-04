@@ -37,7 +37,7 @@ STATS_API_PORT = 10809
 POOL_SIZE = 4
 POOL_MAX_AGE = 300  # recycle connections after 5 min
 UPSTREAM_TYPE = "connect"  # "connect" or "socks5"
-REPO_URL = "https://api.github.com/repos/601494530-create/smart-proxy-forwarder/releases/latest"
+REPO_URL = "https://api.github.com/repos/pocraft/smart-proxy-forwarder/releases/latest"
 
 
 def check_update() -> str:

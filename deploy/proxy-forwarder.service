@@ -1,6 +1,6 @@
 [Unit]
 Description=Smart Proxy Forwarder — auto-routing CONNECT proxy
-Documentation=https://github.com/601494530-create/smart-proxy-forwarder
+Documentation=https://github.com/pocraft/smart-proxy-forwarder
 After=network-online.target
 Wants=network-online.target
 

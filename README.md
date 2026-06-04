@@ -4,10 +4,10 @@
 
 > **🌐 English version:** [README.en.md](README.en.md)
 
-[![GitHub Release](https://img.shields.io/github/v/release/601494530-create/smart-proxy-forwarder)](https://github.com/601494530-create/smart-proxy-forwarder/releases)
-[![Python](https://img.shields.io/badge/python-3.8+-blue)](https://github.com/601494530-create/smart-proxy-forwarder)
-[![License](https://img.shields.io/github/license/601494530-create/smart-proxy-forwarder)](LICENSE)
-[![CI](https://github.com/601494530-create/smart-proxy-forwarder/actions/workflows/ci.yml/badge.svg)](https://github.com/601494530-create/smart-proxy-forwarder/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/pocraft/smart-proxy-forwarder)](https://github.com/pocraft/smart-proxy-forwarder/releases)
+[![Python](https://img.shields.io/badge/python-3.8+-blue)](https://github.com/pocraft/smart-proxy-forwarder)
+[![License](https://img.shields.io/github/license/pocraft/smart-proxy-forwarder)](LICENSE)
+[![CI](https://github.com/pocraft/smart-proxy-forwarder/actions/workflows/ci.yml/badge.svg)](https://github.com/pocraft/smart-proxy-forwarder/actions)
 
 轻量级 DNS 防泄漏 CONNECT 代理转发器。**国内直连、国际走远程代理**，自动分流，零依赖。
 
@@ -79,7 +79,7 @@
 
 ```bash
 # 1. 克隆
-git clone https://github.com/601494530-create/smart-proxy-forwarder.git
+git clone https://github.com/pocraft/smart-proxy-forwarder.git
 cd smart-proxy-forwarder
 
 # 2. 一键安装
